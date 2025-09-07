@@ -8,3 +8,5 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+AWS/.aws/config
+AWS/.aws/credentials
