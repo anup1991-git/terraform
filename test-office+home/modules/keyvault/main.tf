@@ -7,4 +7,5 @@ resource "azurerm_key_vault" "arkv" {
   enabled_for_disk_encryption = true
   purge_protection_enabled = true
   soft_delete_retention_days = 7
+  enable_rbac_authorization = true
 }
