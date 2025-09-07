@@ -9,7 +9,7 @@ module "keyvault" {
 }
 
 module "managed_identity" {
-  source = "./modules/managed identity"
+  source = "./modules/identity/managed-identity"
   resource_group_name = "anupcore-rg"
   location = "East US"
   uid_name = "anup-uid"
@@ -22,7 +22,7 @@ resource "azurerm_role_assignment" "self_access" {
 }
 
 module "role_assignment" {  
-  source = "./modules/role assignment"
+  source = "./modules/identity/role-assignment"
   scope = module.keyvault.key_vault_id
   role_definition_name = "Key Vault Secrets User"
   principal_id = module.managed_identity.principal_id
