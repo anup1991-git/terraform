@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main
+      - master
   paths:
     include:
       - test-office+home/environments/dev/*
