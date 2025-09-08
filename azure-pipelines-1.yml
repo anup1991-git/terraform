@@ -20,7 +20,7 @@ stages:
   - stage: CodeStrength
     displayName: "Code Quality & Security Checks"
     jobs:
-      - job: terraform-install
+      - job: terraform_install
         displayName: "Installing terraform"
         steps:
           - checkout: self
