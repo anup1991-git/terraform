@@ -4,7 +4,16 @@ trigger:
       - main
   paths:
     include:
-      - test-office+home/environments/dev/*   # 👈 adjust folder
+      - test-office+home/environments/dev/*
+
+variables:
+  - name: 'terrform_version'
+    value: '1.13.0'
+  - name: 'work_dir'
+    value: 'test-office+home/environments/dev/'
+  - name: 'service-connection'
+    value: 'terraform-sg'
+
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -24,17 +33,17 @@ stages:
           - task: TerraformInstaller@1
             displayName: "Install Terraform"
             inputs:
-              terraformVersion: '1.13.0'
+              terraformVersion: '$(terrform_version)'
 
           # Format Check
           - script: terraform fmt -check -recursive
             displayName: "Check Terraform Formatting"
-            workingDirectory: test-office+home/environments/dev/
+            workingDirectory: $(work_dir)
 
           # Validate
           - script: terraform validate
             displayName: "Terraform Validate"
-            workingDirectory: test-office+home/environments/dev/
+            workingDirectory: $(work_dir)
 
           # Lint with TFLint
           - script: |
@@ -42,14 +51,14 @@ stages:
               tflint --init
               tflint --recursive
             displayName: "Run TFLint"
-            workingDirectory: test-office+home/environments/dev/
+            workingDirectory: $(work_dir)
 
           # Security Scan with tfsec
           - script: |
               curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
               tfsec .
             displayName: "Run tfsec Security Scan"
-            workingDirectory: test-office+home/environments/dev/
+            workingDirectory: $(work_dir)
 
   # -------------------------
   # Stage 2: Terraform Plan
@@ -66,22 +75,22 @@ stages:
 
           - task: TerraformInstaller@1
             inputs:
-              terraformVersion: '1.9.5'
+              terraformVersion: '$(terrform_version)'
 
           - task: TerraformTaskV4@4
             displayName: "Terraform Init"
             inputs:
               provider: 'azurerm'
               command: 'init'
-              workingDirectory: 'infra/terraform'
+              workingDirectory: $(work_dir)
 
           - task: TerraformTaskV4@4
             displayName: "Terraform Plan"
             inputs:
               provider: 'azurerm'
               command: 'plan'
-              workingDirectory: 'infra/terraform'
-              environmentServiceNameAzureRM: 'your-service-connection'
+              workingDirectory: $(work_dir)
+              environmentServiceNameAzureRM: $(service-connection)
               commandOptions: '-out=tfplan'
 
           # Publish plan as artifact
@@ -107,7 +116,7 @@ stages:
 
                 - task: TerraformInstaller@1
                   inputs:
-                    terraformVersion: '1.9.5'
+                    terraformVersion: '$(terrform_version)'
 
                 - download: current
                   artifact: terraform_plan
@@ -117,6 +126,6 @@ stages:
                   inputs:
                     provider: 'azurerm'
                     command: 'apply'
-                    workingDirectory: 'infra/terraform'
-                    environmentServiceNameAzureRM: 'your-service-connection'
+                    workingDirectory: $(work_dir)
+                    environmentServiceNameAzureRM: $(service-connection)
                     commandOptions: 'tfplan'
