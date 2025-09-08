@@ -17,7 +17,7 @@ variables:
 
 
 stages:
-  - stage: Code-Strength
+  - stage: CodeStrength
     displayName: "Code Quality & Security Checks"
     jobs:
       - job: terraform-install
