@@ -1,19 +1,122 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- master
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - test-office+home/environments/dev/*   # 👈 adjust folder
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: 'ubuntu-latest'
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+stages:
+  # -------------------------
+  # Stage 1: Code Quality & Security
+  # -------------------------
+  - stage: Code_Quality
+    displayName: "Code Quality & Security Checks"
+    jobs:
+      - job: lint_validate
+        displayName: "Terraform Lint, Validate, Security Scan"
+        steps:
+          - checkout: self
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+          - task: TerraformInstaller@1
+            displayName: "Install Terraform"
+            inputs:
+              terraformVersion: '1.13.0'
+
+          # Format Check
+          - script: terraform fmt -check -recursive
+            displayName: "Check Terraform Formatting"
+            workingDirectory: test-office+home/environments/dev/
+
+          # Validate
+          - script: terraform validate
+            displayName: "Terraform Validate"
+            workingDirectory: test-office+home/environments/dev/
+
+          # Lint with TFLint
+          - script: |
+              curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+              tflint --init
+              tflint --recursive
+            displayName: "Run TFLint"
+            workingDirectory: test-office+home/environments/dev/
+
+          # Security Scan with tfsec
+          - script: |
+              curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+              tfsec .
+            displayName: "Run tfsec Security Scan"
+            workingDirectory: test-office+home/environments/dev/
+
+  # -------------------------
+  # Stage 2: Terraform Plan
+  # -------------------------
+  - stage: Plan
+    displayName: "Terraform Plan"
+    dependsOn: Code_Quality
+    condition: succeeded()
+    jobs:
+      - job: terraform_plan
+        displayName: "Terraform Init & Plan"
+        steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: '1.9.5'
+
+          - task: TerraformTaskV4@4
+            displayName: "Terraform Init"
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: 'infra/terraform'
+
+          - task: TerraformTaskV4@4
+            displayName: "Terraform Plan"
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: 'infra/terraform'
+              environmentServiceNameAzureRM: 'your-service-connection'
+              commandOptions: '-out=tfplan'
+
+          # Publish plan as artifact
+          - publish: infra/terraform/tfplan
+            artifact: terraform_plan
+
+  # -------------------------
+  # Stage 3: Terraform Apply
+  # -------------------------
+  - stage: Apply
+    displayName: "Terraform Apply"
+    dependsOn: Plan
+    condition: succeeded()
+    jobs:
+      - deployment: terraform_apply
+        displayName: "Terraform Apply Deployment"
+        environment: 'dev'   # 👈 protect this with approvals in DevOps Envs
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@1
+                  inputs:
+                    terraformVersion: '1.9.5'
+
+                - download: current
+                  artifact: terraform_plan
+
+                - task: TerraformTaskV4@4
+                  displayName: "Terraform Apply"
+                  inputs:
+                    provider: 'azurerm'
+                    command: 'apply'
+                    workingDirectory: 'infra/terraform'
+                    environmentServiceNameAzureRM: 'your-service-connection'
+                    commandOptions: 'tfplan'
