@@ -1,0 +1,52 @@
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - test-office+home/environments/dev/*     
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  storage-account-name : 'tfstoreanup'
+  work-dir : 'test-office+home/environments/dev/'
+  container: 'tfstate'
+  terraform-key: 'terraform.tfstate'
+
+
+stages:
+  - stage: Code-Strength
+    displayName: "Code Quality & Security Checks"
+    jobs:
+      - job: terraform-install
+        displayName: "Installing terraform"
+        steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: 'latest'
+
+          - task: TerraformTask@5
+            displayName: "Executing Terraform init"
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: 'terraform-sg'
+              backendAzureRmStorageAccountName: '$(storage-account-name)'
+              backendAzureRmContainerName: '$(container)'
+              backendAzureRmKey: '$(terraform-key)'
+            
+          - task: TerraformTask@5
+            displayName: "Terraform Validate"
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+            
+          - script: |
+              terraform fmt -check -recursive
+            displayName: "Terraform format check"
+            workingDirectory: $(work-dir)
+            
